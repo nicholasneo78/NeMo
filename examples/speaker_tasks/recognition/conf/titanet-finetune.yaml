@@ -1,22 +1,27 @@
 name: &name "TitaNet-Finetune"
 sample_rate: &sample_rate 16000
 
-init_from_pretrained_model:
-  speaker_tasks:
-    name: 'titanet_large'
+init_from_nemo_model:
+  lang_id_task:
+    path: /models/ambernet.nemo
+    # name: 'titanet_large'
     include: ["preprocessor","encoder"]
     exclude: ["decoder.final"] # Add specific layer names here to exlude or just ["decoder"] if to exclude all of decoder pretrained weights
 
 model:
   train_ds:
-    manifest_filepath: ???
-    sample_rate: 16000
+    manifest_filepath: /datasets/mms_lid/train_split/train_manifest.json
     labels: null
-    batch_size: 64
-    shuffle: True
-    is_tarred: False
+    sample_rate: 16000
+    batch_size: 8 # 16
+    shuffle: true
+    is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
+    num_workers: 8
+    min_duration: 1.0
+    random_chunk: false
+    random_chunk_len: 5.0
     augmentor:
       speed:
         prob: 0.3
@@ -26,11 +31,19 @@ model:
         max_speed_rate: 1.05
 
   validation_ds:
-    manifest_filepath: ???
-    sample_rate: 16000
+    manifest_filepath: /datasets/mms_lid/dev_split/dev_manifest.json
     labels: null
-    batch_size: 128
-    shuffle: False
+    sample_rate: 16000
+    batch_size: 16
+    shuffle: false
+    num_workers: 8
+
+  test_ds:
+    manifest_filepath: /datasets/mms_lid/test_split/test_manifest.json
+    labels: null
+    sample_rate: 16000
+    batch_size: 4
+    num_workers: 8
 
   model_defaults:
     filters: 1024
@@ -118,7 +131,7 @@ model:
   decoder:
     _target_: nemo.collections.asr.modules.SpeakerDecoder
     feat_in: *enc_feat_out
-    num_classes: ???
+    num_classes: 3
     pool_mode: 'attention'
     emb_sizes: 192
 
@@ -129,22 +142,35 @@ model:
 
   optim_param_groups:
     encoder:
-      lr: .001
+      lr: 1e-04 #.001
 
   optim:
     name: adamw
-    lr: .0001 #(original titanet-large was trained with 0.08 lr)
+    lr: 5e-05 # .0001 #(original titanet-large was trained with 0.08 lr)
     weight_decay: 0.0002
 
     # scheduler setup
+    # sched:
+    #   name: CosineAnnealing
+    #   warmup_ratio: 0.1
+    #   min_lr: 0.0
+    # sched:
+    #   name: PolynomialHoldDecayAnnealing # <--- Use this scheduler
+    #   warmup_ratio: 0.1                  # <--- Fraction of total steps for warmup
+    #   hold_ratio: 0.4                    # <--- Fraction of total steps to hold at peak LR
+    #   power: 1.0                         # <--- Power of the polynomial decay (1.0 is linear decay)
+    #   min_lr: 0.0   
     sched:
-      name: CosineAnnealing
-      warmup_ratio: 0.1
-      min_lr: 0.0
+      name: ReduceLROnPlateau # <--- Use this scheduler name
+      monitor: 'val_loss'     # <--- Metric name to monitor (MUST match your validation logging)
+      mode: 'min'             # <--- 'min' if monitoring loss, 'max' if monitoring accuracy/score
+      factor: 0.1             # <--- Factor by which the learning rate will be reduced (new_lr = old_lr * factor)
+      patience: 3             # <--- Number of validation epochs with no improvement after which LR will be reduced
+      min_lr: 1e-05 
 
 trainer:
   devices: 1 # number of gpus (original titanet-large was trained on 4 nodes with 8 gpus each)
-  max_epochs: 10
+  max_epochs: 40
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
@@ -157,7 +183,29 @@ trainer:
   gradient_clip_val: 1.0
 
 exp_manager:
-  exp_dir: null
+  exp_dir: /models/nemo_test
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: 'val_loss' # Metric to monitor for saving
+    mode: 'min'         # 'min' or 'max'
+    save_top_k: 3       # Save the single best model
+    save_last: True     # Also save the last model (optional)
+    # every_n_epochs: 1 # Save every N epochs regardless of performance (optional)
+    # every_n_train_steps: null # Save every N steps regardless of performance (optional)
+    verbose: True # The schema default is True
+
+  # # This flag controls the automatic creation of the early stopping callback
+  # create_early_stopping_callback: True
+
+  # # All early stopping parameters go under this key:
+  # early_stopping_callback_params:
+  #   monitor: 'val_loss' # Must match the metric name monitored for checkpointing
+  #   mode: 'min'         # 'min' for loss, 'max' for accuracy/score
+  #   patience: 5        # Number of validation epochs to wait for improvement
+  #   min_delta: 0.001    # Minimum change to qualify as improvement (optional)
+  #   verbose: True      # Whether to print messages (schema default is True)
+
+  resume_from_checkpoint: null
+  # resume_from_checkpoint: /models/nemo_test/TitaNet-Finetune/2025-04-30_07-26-58-ReduceLROnPlateau-no-ES/checkpoints/TitaNet-Finetune--val_loss=1.2359-epoch=38-last.ckpt

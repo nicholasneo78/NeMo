@@ -28,7 +28,7 @@ __pycache__/
 .idea
 .Python
 wandb
-build/
+# build/
 develop-eggs/
 dist/
 downloads/
@@ -181,3 +181,4 @@ examples/neural_graphs/*.yml
 nemo_experiments/
 
 slurm*.out
+examples/speaker_tasks/recognition/lightning_logs/

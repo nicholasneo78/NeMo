@@ -1,0 +1,34 @@
+services:
+  local:
+    build:
+      context: ../
+      dockerfile: build/dockerfile
+    container_name: nemo_lid
+    stdin_open: true
+    tty: true
+    image: nemo_lid:v0.0.1-torch-2.7.0-cudnn9-cuda12.6
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - $HOME/code/nemo/:/nemo_lid
+      - $HOME/datasets/:/datasets
+      - $HOME/models/:/models
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    shm_size: 32gb
+  
+  tensorboard:
+    stdin_open: true
+    tty: true
+    image: nemo_lid:v0.0.1-torch-2.7.0-cudnn9-cuda12.6
+    ports:
+      - 6006:6006
+    volumes:
+      - $HOME/models/nemo_test:/logs
+    command: tensorboard --logdir /logs --host 0.0.0.0 --port 6006
