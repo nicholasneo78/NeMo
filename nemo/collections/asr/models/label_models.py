@@ -260,6 +260,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                 channel_selector=config.get('channel_selector', None),
                 normalize_audio=config.get('normalize_audio', False),
                 cal_labels_occurrence=config.get('cal_labels_occurrence', False),
+                random_chunk=config.get('random_chunk', False),
+                random_chunk_len=config.get('random_chunk_len', None),
+                sample_rate=config.get('sample_rate', 16000)
+
             )
             if dataset.labels_occurrence:
                 self.labels_occurrence = dataset.labels_occurrence

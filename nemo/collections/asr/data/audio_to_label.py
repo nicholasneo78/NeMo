@@ -13,6 +13,7 @@
 # limitations under the License.
 import io
 import os
+import random
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -277,8 +278,11 @@ target_label_n, "offset": offset_in_sec_n}
         manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
+        random_chunk: Optional[bool] = False,
+        random_chunk_len: Optional[float] = None,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
+        sample_rate: float = 16000,
         trim: bool = False,
         channel_selector: Union[str, int, List[int]] = None,
         is_regression_task: bool = False,
@@ -300,6 +304,10 @@ target_label_n, "offset": offset_in_sec_n}
         self.trim = trim
         self.channel_selector = channel_selector
         self.is_regression_task = is_regression_task
+        self.random_chunk = random_chunk
+        self.random_chunk_len = random_chunk_len
+        self.min_duration = min_duration
+        self.sample_rate = sample_rate
 
         if not is_regression_task:
             self.labels = labels if labels else self.collection.uniq_labels
@@ -327,8 +335,8 @@ target_label_n, "offset": offset_in_sec_n}
         return len(self.collection)
 
     def __getitem__(self, index):
-        sample = self.collection[index]
 
+        sample = self.collection[index]
         offset = sample.offset
 
         if offset is None:
@@ -341,7 +349,28 @@ target_label_n, "offset": offset_in_sec_n}
             trim=self.trim,
             channel_selector=self.channel_selector,
         )
-        f, fl = features, torch.tensor(features.shape[0]).long()
+
+        # print(features)
+        # print(f"Length of the features: {features}")
+        # print(f"Audio length from manifest: {sample.duration}")
+        # print(f"Audio length from tensor: {features.size()}")
+
+        # FEATURE: if self.random_chunk is true, will randomly take in a portion of audio for training, to increase robustness of the model
+        if self.random_chunk and self.random_chunk_len is not None:
+            max_len = int(self.random_chunk_len * 16000)
+            if len(features) <= max_len:
+                segment = features
+            else:
+                start = random.randint(0, len(features) - max_len)
+                segment = features[start : start + max_len]
+                # print("Start: %s", start)
+                # print("End: %s", start + max_len)
+        else:
+            segment = features
+            # print("Length: %s", len(segment))
+
+        # f, fl = features, torch.tensor(features.shape[0]).long()
+        f, fl = segment, torch.tensor(segment.shape[0]).long()
 
         if not self.is_regression_task:
             t = torch.tensor(self.label2id[sample.label]).long()
@@ -428,8 +457,11 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
+        random_chunk: Optional[bool] = False,
+        random_chunk_len: Optional[float] = None,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
+        sample_rate: float = 16000,
         trim: bool = False,
         channel_selector: Optional[Union[str, int, List[int]]] = None,
         window_length_in_sec: Optional[float] = 8,
@@ -451,10 +483,13 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
             featurizer=featurizer,
             min_duration=min_duration,
             max_duration=max_duration,
+            sample_rate=sample_rate,
             trim=trim,
             channel_selector=channel_selector,
             is_regression_task=is_regression_task,
             cal_labels_occurrence=cal_labels_occurrence,
+            random_chunk=random_chunk,
+            random_chunk_len=random_chunk_len,
         )
 
     def fixed_seq_collate_fn(self, batch):

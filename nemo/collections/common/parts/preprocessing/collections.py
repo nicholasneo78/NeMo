@@ -947,11 +947,15 @@ class ASRSpeechLabel(SpeechLabel):
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line structure: {line} without proper duration key.")
 
-        # Label.
+        # Label. Added language and speaker as one of the label as well
         if 'command' in item:
             item['label'] = item.pop('command')
         elif 'target' in item:
             item['label'] = item.pop('target')
+        elif 'language' in item:
+            item['label'] = item.pop('language')
+        elif 'speaker' in item:
+            item['label'] = item.pop('speaker')
         elif 'label' in item:
             pass
         else:

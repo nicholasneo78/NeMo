@@ -1,0 +1,35 @@
+FROM pytorch/pytorch:2.7.0-cuda12.6-cudnn9-runtime
+
+ENV TZ=Asia/Singapore
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && \
+    apt-get install -y gcc build-essential libsndfile1 vim git sox wget ffmpeg sudo python3-pip g++ libsox-fmt-mp3 file && \
+    apt-get autoremove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN rm -rf $(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")/ruamel*
+RUN pip install --upgrade pip
+
+RUN pip install --no-cache-dir https://download.pytorch.org/whl/cu126/torchaudio-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=eb39b716d905ef23c0c3199d1266d7d711197c1d6275bd2cd034584169d20cd0
+
+# add nemo specific packages and build nemo from source
+COPY requirements/ requirements/
+RUN python3 -m pip install --no-cache-dir -r requirements/requirements_audio.txt
+COPY nemo/ nemo/
+COPY tools/ tools/
+COPY setup.py setup.py
+COPY pyproject.toml pyproject.toml
+COPY README.md README.md
+RUN pip install --editable .
+
+# additional requirements
+COPY build/requirements.txt build/
+RUN python3 -m pip install --no-cache-dir -r build/requirements.txt && pip cache purge
+
+WORKDIR /nemo_lid
+RUN ["bash"]

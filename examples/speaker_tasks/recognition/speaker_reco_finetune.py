@@ -26,7 +26,6 @@ from nemo.utils.exp_manager import exp_manager
 
 seed_everything(42)
 
-
 @hydra_runner(config_path="conf", config_name="titanet-finetune.yaml")
 def main(cfg):
 
@@ -42,6 +41,10 @@ def main(cfg):
             if speaker_model.labels is not None:
                 for label in speaker_model.labels:
                     f.write(f'{label}\n')
+
+    speaker_model.setup_training_data(cfg.model.train_ds)
+    speaker_model.setup_validation_data(cfg.model.validation_ds)
+    speaker_model.setup_test_data(cfg.model.test_ds)
 
     trainer.fit(speaker_model)
 
