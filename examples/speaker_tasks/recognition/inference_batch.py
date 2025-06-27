@@ -155,13 +155,14 @@ class LIDEvaluation:
 
 if __name__ == "__main__":
 
-    MODEL_DIR = "/models/nemo_test/TitaNet-Finetune/2025-05-08_09-21-18-ReduceLROnPlateau-no-ES/checkpoints/TitaNet-Finetune.nemo"
-    ROOT_DIR = "/datasets/mms_lid/test_split"
+    # MODEL_DIR = "/models/nemo_test/TitaNet-Finetune/2025-05-08_09-21-18-ReduceLROnPlateau-no-ES/checkpoints/TitaNet-Finetune.nemo"
+    MODEL_DIR = '/models/ambernet_finetuned/malt_lid_10h_epoch_20_lr_5e-04_5e-05_bs_32/TitaNet-Finetune/2025-06-08_09-47-20/checkpoints/TitaNet-Finetune.nemo'
+    ROOT_DIR = "/datasets/malt_lid_10h"
     INPUT_MANIFEST_DIR = os.path.join(ROOT_DIR, "test_manifest.json")
     OUTPUT_MANIFEST_DIR = os.path.join(ROOT_DIR, "pred_test_manifest_nemo.json")
-    INFERENCE_BATCH=32
+    INFERENCE_BATCH=16
     
-    RUN_INFERENCE=False
+    RUN_INFERENCE=True
     HAS_LABEL=True
 
     if RUN_INFERENCE:

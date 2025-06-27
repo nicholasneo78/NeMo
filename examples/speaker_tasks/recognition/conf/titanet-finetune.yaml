@@ -1,5 +1,6 @@
 name: &name "TitaNet-Finetune"
 sample_rate: &sample_rate 16000
+num_classes: 5
 
 init_from_nemo_model:
   lang_id_task:
@@ -10,17 +11,17 @@ init_from_nemo_model:
 
 model:
   train_ds:
-    manifest_filepath: /datasets/mms_lid/train_split/train_manifest.json
+    manifest_filepath: /datasets/malt_lid_10h/train_manifest.json
     labels: null
     sample_rate: 16000
-    batch_size: 8 # 16
+    batch_size: 32
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     num_workers: 8
     min_duration: 1.0
-    random_chunk: false
+    random_chunk: true
     random_chunk_len: 5.0
     augmentor:
       speed:
@@ -31,7 +32,7 @@ model:
         max_speed_rate: 1.05
 
   validation_ds:
-    manifest_filepath: /datasets/mms_lid/dev_split/dev_manifest.json
+    manifest_filepath: /datasets/malt_lid_10h/dev_manifest.json
     labels: null
     sample_rate: 16000
     batch_size: 16
@@ -39,7 +40,7 @@ model:
     num_workers: 8
 
   test_ds:
-    manifest_filepath: /datasets/mms_lid/test_split/test_manifest.json
+    manifest_filepath: /datasets/malt_lid_10h/test_manifest.json
     labels: null
     sample_rate: 16000
     batch_size: 4
@@ -131,7 +132,7 @@ model:
   decoder:
     _target_: nemo.collections.asr.modules.SpeakerDecoder
     feat_in: *enc_feat_out
-    num_classes: 3
+    num_classes: ${num_classes}
     pool_mode: 'attention'
     emb_sizes: 192
 
@@ -142,35 +143,36 @@ model:
 
   optim_param_groups:
     encoder:
-      lr: 1e-04 #.001
+      lr: 5e-04 #.001
 
   optim:
     name: adamw
     lr: 5e-05 # .0001 #(original titanet-large was trained with 0.08 lr)
-    weight_decay: 0.0002
+    weight_decay: 1e-04
 
     # scheduler setup
     # sched:
     #   name: CosineAnnealing
     #   warmup_ratio: 0.1
-    #   min_lr: 0.0
-    # sched:
-    #   name: PolynomialHoldDecayAnnealing # <--- Use this scheduler
-    #   warmup_ratio: 0.1                  # <--- Fraction of total steps for warmup
-    #   hold_ratio: 0.4                    # <--- Fraction of total steps to hold at peak LR
-    #   power: 1.0                         # <--- Power of the polynomial decay (1.0 is linear decay)
-    #   min_lr: 0.0   
+    #   monitor: 'val_loss'     # <--- Metric name to monitor (MUST match your validation logging)
+    #   min_lr: 0.0 
     sched:
-      name: ReduceLROnPlateau # <--- Use this scheduler name
-      monitor: 'val_loss'     # <--- Metric name to monitor (MUST match your validation logging)
-      mode: 'min'             # <--- 'min' if monitoring loss, 'max' if monitoring accuracy/score
-      factor: 0.1             # <--- Factor by which the learning rate will be reduced (new_lr = old_lr * factor)
-      patience: 3             # <--- Number of validation epochs with no improvement after which LR will be reduced
-      min_lr: 1e-05 
+      name: PolynomialHoldDecayAnnealing # <--- Use this scheduler
+      warmup_ratio: 0.1                  # <--- Fraction of total steps for warmup
+      hold_ratio: 0.4                    # <--- Fraction of total steps to hold at peak LR
+      power: 1.0                         # <--- Power of the polynomial decay (1.0 is linear decay)
+      min_lr: 0.0
+      # monitor: 'val_loss'
+    # sched:
+    #   name: ReduceLROnPlateau # <--- Use this scheduler name
+    #   monitor: 'val_loss'     # <--- Metric name to monitor (MUST match your validation logging)
+    #   mode: 'min'             # <--- 'min' if monitoring loss, 'max' if monitoring accuracy/score
+    #   factor: 0.1             # <--- Factor by which the learning rate will be reduced (new_lr = old_lr * factor)
+    #   min_lr: 1e-05
 
 trainer:
   devices: 1 # number of gpus (original titanet-large was trained on 4 nodes with 8 gpus each)
-  max_epochs: 40
+  max_epochs: 20
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
@@ -183,13 +185,13 @@ trainer:
   gradient_clip_val: 1.0
 
 exp_manager:
-  exp_dir: /models/nemo_test
+  exp_dir: /models/ambernet_finetuned/malt_lid_10h_epoch_20_lr_5e-04_5e-05_bs_32
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: 'val_loss' # Metric to monitor for saving
-    mode: 'min'         # 'min' or 'max'
+    monitor: 'val_acc_macro' # Metric to monitor for saving
+    mode: 'max'         # 'min' or 'max'
     save_top_k: 3       # Save the single best model
     save_last: True     # Also save the last model (optional)
     # every_n_epochs: 1 # Save every N epochs regardless of performance (optional)
