@@ -24,11 +24,12 @@ services:
     shm_size: 32gb
   
   tensorboard:
+    container_name: tensorboard
     stdin_open: true
     tty: true
     image: nemo_lid:v0.0.1-torch-2.7.0-cudnn9-cuda12.6
     ports:
       - 6006:6006
     volumes:
-      - $HOME/models/nemo_test:/logs
+      - $HOME/models/ambernet_finetuned:/logs
     command: tensorboard --logdir /logs --host 0.0.0.0 --port 6006
